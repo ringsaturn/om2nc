@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install libnetcdf (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libnetcdf-dev
+      - name: Install libnetcdf (macOS)
+        if: runner.os == 'macOS'
+        run: brew install netcdf
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test
+      - name: Smoke test against the live bucket
+        run: |
+          cargo run --release -- info --model ecmwf_ifs025
+          cargo run --release -- fetch --model ecmwf_ifs025 --step 3,6 \
+            --var temperature_2m,precipitation --bbox 120,20,150,50 -o smoke025.nc
+          cargo run --release -- fetch --model ecmwf_ifs --step 3 \
+            --var temperature_2m --bbox 120,20,150,50 -o smoke_o1280.nc
+          test -s smoke025.nc && test -s smoke_o1280.nc
