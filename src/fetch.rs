@@ -518,7 +518,11 @@ async fn read_all(
                         let mut total = 0.0f32;
                         for (i, src) in out.sources.iter().enumerate() {
                             let s = take(i).expect("interval variable read from every source");
-                            let d = src.duration as f32;
+                            // A run the JSON no longer describes has no known
+                            // cadence (`plan_steps` gives its one source a
+                            // duration of 0): weight it 1 so a mean is the
+                            // file's own value rather than 0 × value.
+                            let d = if src.duration > 0 { src.duration as f32 } else { 1.0 };
                             total += d;
                             acc = Some(match acc {
                                 None => match r {
